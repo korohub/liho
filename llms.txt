@@ -1,0 +1,375 @@
+# Liho - Documentation LLM
+
+> Framework React léger avec Hono pour créer des applications SPA avec API intégrée.
+
+## Stack
+
+- React 18 + React Router 7 (SPA)
+- Hono (API backend ~14kb)
+- Vite (build/dev)
+- Tailwind CSS (styling)
+- TypeScript
+
+## Commandes
+
+```bash
+npm run dev      # Dev server http://localhost:4010
+npm run build    # Build production → dist/
+npm run preview  # Tester le build localement
+npm start        # Production
+```
+
+---
+
+## ROUTING - PAGES
+
+Fichiers dans `src/routes/` → routes automatiques.
+
+### Conventions
+
+| Fichier | URL |
+|---------|-----|
+| `page.tsx` | Composant de page |
+| `layout.tsx` | Layout avec `<Outlet />` (nested) |
+| `error.tsx` | Error boundary |
+| `loading.tsx` | Suspense fallback |
+| `[param]/` | Segment dynamique → `:param` |
+| `[...slug]/` | Catch-all → `*` |
+| `(group)/` | Route group (pas de segment URL) |
+
+### Exemples
+
+```
+src/routes/
+├── page.tsx                    → /
+├── layout.tsx                  → Layout global
+├── error.tsx                   → Error boundary global
+├── about/page.tsx              → /about
+├── users/
+│   ├── page.tsx                → /users
+│   └── [id]/page.tsx           → /users/:id
+├── (auth)/
+│   ├── login/page.tsx          → /login
+│   └── register/page.tsx       → /register
+└── [...404]/page.tsx           → /* (404)
+```
+
+### Créer une page
+
+```tsx
+// src/routes/dashboard/page.tsx
+export default function DashboardPage() {
+  return <h1>Dashboard</h1>
+}
+```
+
+### Page avec paramètre
+
+```tsx
+// src/routes/users/[id]/page.tsx
+import { useParams } from 'react-router-dom'
+
+export default function UserPage() {
+  const { id } = useParams<{ id: string }>()
+  return <h1>User {id}</h1>
+}
+```
+
+### Layout (nested)
+
+```tsx
+// src/routes/layout.tsx
+import { Outlet } from 'react-router-dom'
+
+export default function RootLayout() {
+  return (
+    <div>
+      <nav>...</nav>
+      <main><Outlet /></main>
+    </div>
+  )
+}
+```
+
+### Error boundary
+
+```tsx
+// src/routes/error.tsx
+import { useRouteError } from 'react-router-dom'
+
+export default function ErrorPage() {
+  const error = useRouteError() as Error
+  return <div>Error: {error.message}</div>
+}
+```
+
+---
+
+## ROUTING - API
+
+Fichiers dans `src/routes/api/` → routes Hono.
+
+### Conventions
+
+- Exporter `GET`, `POST`, `PUT`, `DELETE`, `PATCH`
+- `index.ts` → route sans suffixe
+- `[param].ts` → paramètre dynamique
+- `middleware.ts` → middleware auto-appliqué
+
+### Exemples
+
+```typescript
+// src/routes/api/users.ts → GET/POST /api/users
+import type { Context } from 'hono'
+
+export async function GET(c: Context) {
+  return c.json([{ id: 1, name: 'John' }])
+}
+
+export async function POST(c: Context) {
+  const body = await c.req.json()
+  return c.json(body, 201)
+}
+```
+
+```typescript
+// src/routes/api/users/[id].ts → /api/users/:id
+import type { Context } from 'hono'
+
+export async function GET(c: Context) {
+  const id = c.req.param('id')
+  return c.json({ id })
+}
+
+export async function DELETE(c: Context) {
+  const id = c.req.param('id')
+  return c.json({ deleted: id })
+}
+```
+
+### Middleware API
+
+```typescript
+// src/routes/api/middleware.ts → appliqué sur /api/*
+import { createMiddleware } from 'hono/factory'
+
+export default createMiddleware(async (c, next) => {
+  console.log(`${c.req.method} ${c.req.path}`)
+  await next()
+})
+```
+
+---
+
+## UTILITAIRES - AUTH
+
+Import: `import { ... } from '../lib/auth'`
+
+### Configuration
+
+```typescript
+// Dans middleware.ts ou au démarrage
+import { configureAuth } from '../lib/auth'
+
+configureAuth({
+  verifyToken: async (token) => {
+    // Vérifier JWT et retourner user ou null
+    const payload = await verifyJWT(token)
+    return payload ? { id: payload.sub } : null
+  }
+})
+```
+
+### Fonctions disponibles
+
+| Fonction | Usage |
+|----------|-------|
+| `requireAuth()` | Middleware - bloque si non authentifié |
+| `optionalAuth()` | Middleware - charge user si présent |
+| `requireRole(role)` | Middleware - vérifie le rôle |
+| `setSession(c, token)` | Définit le cookie de session |
+| `clearSession(c)` | Supprime le cookie (logout) |
+| `getUser(c)` | Retourne user (throw si absent) |
+| `getUserOrNull(c)` | Retourne user ou null |
+
+### Exemple route protégée
+
+```typescript
+// src/routes/api/me.ts
+import type { Context } from 'hono'
+import { requireAuth, getUser } from '../../lib/auth'
+
+export async function GET(c: Context) {
+  await requireAuth()(c, async () => {})
+  const user = getUser(c)
+  return c.json(user)
+}
+```
+
+---
+
+## UTILITAIRES - MIDDLEWARE
+
+Import: `import { ... } from '../lib/middleware'`
+
+| Fonction | Usage |
+|----------|-------|
+| `combine(...middlewares)` | Chaîne plusieurs middlewares |
+| `when(condition, middleware)` | Middleware conditionnel |
+| `guard(condition, status, msg)` | Bloque si condition false |
+| `validateBody(validator)` | Valide le body JSON |
+| `cache(ttl, handler)` | Cache mémoire simple |
+
+### Exemple
+
+```typescript
+import { combine, guard } from '../../lib/middleware'
+import { requireAuth } from '../../lib/auth'
+
+const adminOnly = combine(
+  requireAuth(),
+  guard((c) => getUser(c).role === 'admin', 403, 'Admin only')
+)
+
+export async function DELETE(c: Context) {
+  await adminOnly(c, async () => {})
+  // ...
+}
+```
+
+---
+
+## MIDDLEWARES HONO (natifs)
+
+Ne pas recréer, utiliser directement :
+
+```typescript
+import { cors } from 'hono/cors'
+import { csrf } from 'hono/csrf'
+import { jwt } from 'hono/jwt'
+import { logger } from 'hono/logger'
+import { secureHeaders } from 'hono/secure-headers'
+import { timeout } from 'hono/timeout'
+import { rateLimiter } from 'hono/rate-limiter'
+```
+
+---
+
+## DARK MODE
+
+Import: `import { useTheme } from '../lib/useTheme'`
+
+```tsx
+function MyComponent() {
+  const { theme, setTheme, isDark } = useTheme()
+  // theme: 'light' | 'dark' | 'system'
+
+  return (
+    <button onClick={() => setTheme('dark')}>
+      Dark mode
+    </button>
+  )
+}
+```
+
+Tailwind: utiliser `dark:` prefix.
+
+```tsx
+<div className="bg-white dark:bg-gray-900">
+```
+
+---
+
+## STRUCTURE FICHIERS
+
+```
+liho/
+├── src/
+│   ├── routes/           # Pages et API (file-based routing)
+│   ├── components/       # Composants React réutilisables
+│   ├── lib/              # Utilitaires du framework
+│   ├── _generated/       # AUTO-GÉNÉRÉ - NE PAS MODIFIER
+│   ├── main.tsx          # Point d'entrée React
+│   └── index.css         # Styles Tailwind
+├── public/               # Assets statiques (favicon, images)
+├── server.ts             # Serveur de production
+└── liho.config.ts    # Configuration
+```
+
+---
+
+## DOSSIER PUBLIC
+
+Le dossier `public/` contient les assets statiques (favicon, images, fonts, etc.).
+
+- Copié automatiquement dans `dist/client/` au build
+- Accessible directement à la racine URL (ex: `/favicon.svg`)
+
+```
+public/
+├── favicon.svg
+├── logo.png
+└── fonts/
+    └── inter.woff2
+```
+
+---
+
+## CONFIGURATION
+
+Fichier `liho.config.ts` à la racine du projet.
+
+```typescript
+import { defineConfig } from './scripts/config'
+
+export default defineConfig({
+  server: {
+    port: 4010,        // Port du serveur dev
+    host: 'localhost'
+  },
+  logging: {
+    level: 'verbose',  // 'none' | 'minimal' | 'verbose'
+    apiRequests: true  // Log des requêtes API avec temps de réponse
+  },
+  build: {
+    outDir: 'dist',    // Dossier de sortie
+    minify: true
+  }
+})
+```
+
+---
+
+## BUILD PRODUCTION
+
+Le build génère un serveur portable et déployable :
+
+```
+dist/
+├── client/           # Frontend (HTML, JS, CSS, assets)
+├── server.js         # Serveur Node.js bundlé
+└── package.json      # Dépendances minimales
+```
+
+Le dossier `dist/` peut être copié et lancé n'importe où avec :
+
+```bash
+cd dist
+npm install    # Installe uniquement @hono/node-server
+npm start      # Lance le serveur
+```
+
+Le port utilise la valeur de `liho.config.ts` (défaut: 4010).
+Variable d'environnement `PORT` pour override.
+
+---
+
+## RÈGLES IMPORTANTES
+
+1. **Ne jamais modifier `src/_generated/`** - régénéré automatiquement
+2. **Pages = `page.tsx`** dans `src/routes/`
+3. **API = `.ts`** dans `src/routes/api/`
+4. **Layouts nested** - chaque `layout.tsx` wrap ses enfants
+5. **Utiliser Hono natif** pour cors, csrf, jwt, logger, etc.
+6. **Variables env client** - préfixer avec `VITE_`
+7. **Log API intégré** - configurable via `liho.config.ts`
