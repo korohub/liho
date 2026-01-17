@@ -391,19 +391,45 @@ export default function DashboardLayout() {
 
 ### Route Groups
 
-Route groups `(name)` allow organizing files without affecting the URL:
+Route groups `(name)` allow organizing files **without affecting the URL**. The name in parentheses is "invisible" to the user.
+
+**Comparison:**
+```
+# WITHOUT parentheses - the folder appears in the URL
+src/routes/auth/login/page.tsx     → /auth/login
+
+# WITH parentheses - the folder is invisible
+src/routes/(auth)/login/page.tsx   → /login
+```
+
+**Use case 1: Group pages by theme**
 
 ```
 src/routes/
-├── (marketing)/
-│   ├── page.tsx            # → /
-│   ├── about/page.tsx      # → /about
-│   └── pricing/page.tsx    # → /pricing
-├── (app)/
-│   ├── layout.tsx          # App layout only
-│   ├── dashboard/page.tsx  # → /dashboard
-│   └── settings/page.tsx   # → /settings
+├── (marketing)/              # Public pages (folder doesn't appear in URL)
+│   ├── page.tsx              → /
+│   ├── about/page.tsx        → /about
+│   └── pricing/page.tsx      → /pricing
+│
+├── (dashboard)/              # Authenticated pages
+│   ├── layout.tsx            # Layout with sidebar (applies only here)
+│   ├── home/page.tsx         → /home
+│   └── settings/page.tsx     → /settings
 ```
+
+**Use case 2: Apply a layout to specific pages only**
+
+```
+src/routes/
+├── (auth)/
+│   ├── layout.tsx            # Centered layout with logo and gray background
+│   ├── login/page.tsx        → /login     (uses auth layout)
+│   └── register/page.tsx     → /register  (uses auth layout)
+│
+├── dashboard/page.tsx        → /dashboard (does NOT use auth layout)
+```
+
+The layout in `(auth)/layout.tsx` applies only to login and register pages, not to the rest of the application.
 
 ### Error Boundaries
 
@@ -622,25 +648,118 @@ function App() {
 }
 ```
 
-### How to protect a route?
+### How to protect an API route?
 
-Create a protection component:
+Use Hono's authentication middleware. Example with JWT:
+
+
+**1. Create an authentication middleware:**
+
+```typescript
+// src/lib/auth.ts
+import { jwt } from 'hono/jwt'
+import type { Context, Next } from 'hono'
+
+// Secret key (use environment variable in production)
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+
+// JWT middleware to protect routes
+export const requireAuth = jwt({ secret: JWT_SECRET })
+
+// Helper to get user in a route
+export function getUser(c: Context) {
+  return c.get('jwtPayload')
+}
+```
+
+**2. Protect API routes:**
+
+```typescript
+// src/routes/api/protected/middleware.ts
+import { requireAuth } from '../../../lib/auth'
+
+// All routes in /api/protected/* will be protected
+export default requireAuth
+```
+
+```typescript
+// src/routes/api/protected/me.ts
+import type { Context } from 'hono'
+import { getUser } from '../../../lib/auth'
+
+// GET /api/protected/me - requires valid JWT token
+export async function GET(c: Context) {
+  const user = getUser(c)
+  return c.json({ user })
+}
+```
+
+**3. Recommended structure:**
+
+```
+src/routes/api/
+├── middleware.ts              # CORS + Security headers (global)
+├── auth/
+│   ├── login.ts               # POST /api/auth/login (public)
+│   └── register.ts            # POST /api/auth/register (public)
+└── protected/
+    ├── middleware.ts          # requireAuth (protects entire folder)
+    ├── me.ts                  # GET /api/protected/me
+    └── settings.ts            # GET/PUT /api/protected/settings
+```
+
+**4. Generate a token (login route):**
+
+```typescript
+// src/routes/api/auth/login.ts
+import { sign } from 'hono/jwt'
+import type { Context } from 'hono'
+
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+
+export async function POST(c: Context) {
+  const { email, password } = await c.req.json()
+
+  // Verify credentials (adapt to your database)
+  const user = await verifyCredentials(email, password)
+  if (!user) {
+    return c.json({ error: 'Invalid credentials' }, 401)
+  }
+
+  // Generate JWT token
+  const token = await sign(
+    { sub: user.id, email: user.email, exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 },
+    JWT_SECRET
+  )
+
+  return c.json({ token })
+}
+```
+
+**Other available Hono middlewares:**
+- `hono/basic-auth` - HTTP Basic authentication
+- `hono/bearer-auth` - Simple Bearer token (without JWT)
+
+### How to protect a React page?
+
+On the client side, check if the user has a valid token:
 
 ```tsx
 // src/components/ProtectedRoute.tsx
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../lib/auth'
 
-export function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth()
+export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem('token')
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />
+  if (!token) {
+    return <Navigate to="/login" replace />
   }
 
-  return children
+  return <>{children}</>
 }
 ```
+
+**Note:** The real security is on the API side (Hono middleware). The React check is just for UX (avoiding displaying a page that will fail).
 
 ### Routes not updating?
 
