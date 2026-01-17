@@ -431,6 +431,36 @@ src/routes/
 
 Le layout dans `(auth)/layout.tsx` s'applique uniquement aux pages login et register, pas au reste de l'application.
 
+### Héritage des layouts
+
+**Important :** Les layouts s'empilent (parent → enfant → page). Si tu as un `layout.tsx` à la racine, toutes les pages en héritent, y compris celles dans les route groups.
+
+**Problème :** Tu veux que `/login` n'ait PAS le header/footer du layout racine.
+
+**Solution recommandée :** Ne pas mettre de `layout.tsx` à la racine, mais utiliser des route groups pour isoler les layouts :
+
+```
+src/routes/
+├── page.tsx                    # Page d'accueil (/) - sans layout
+│
+├── (auth)/                     # Pages d'authentification
+│   ├── layout.tsx              # Layout auth : centré, fond gris, logo
+│   ├── login/page.tsx          → /login
+│   └── register/page.tsx       → /register
+│
+├── (app)/                      # Application principale
+│   ├── layout.tsx              # Layout app : header, sidebar, footer
+│   ├── dashboard/page.tsx      → /dashboard
+│   └── settings/page.tsx       → /settings
+```
+
+**Résultat :**
+- `/login` → utilise uniquement le layout `(auth)/layout.tsx`
+- `/dashboard` → utilise uniquement le layout `(app)/layout.tsx`
+- `/` → n'a aucun layout
+
+Chaque groupe a son propre layout indépendant, sans héritage entre eux.
+
 ### Error Boundaries
 
 Chaque `error.tsx` capture les erreurs de sa route et de ses enfants :
