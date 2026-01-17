@@ -1,6 +1,6 @@
 # Liho
 
-Un starter React minimaliste avec file-based routing, inspiré de SvelteKit mais sans la complexité de Next.js.
+Un starter React minimaliste avec file-based routing, inspiré de SvelteKit mais sans la complexité de SSR.
 
 ## Fonctionnalités
 
