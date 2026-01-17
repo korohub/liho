@@ -10,6 +10,7 @@ Un starter React minimaliste avec file-based routing, inspiré de SvelteKit mais
 - **TypeScript** - Typage statique inclus
 - **Tailwind CSS** - Styling utilitaire prêt à l'emploi
 - **Un seul process** - Frontend et API sur le même serveur
+- **Compatible Bun** - Fonctionne avec Node.js ou Bun
 
 ## Démarrage rapide
 
@@ -171,6 +172,15 @@ export default function Navigation() {
 | `npm run preview` | Teste le build localement |
 | `npm start` | Lance le serveur de production |
 
+### Avec Bun (plus rapide)
+
+```bash
+bun install
+bun run dev
+bun run build
+bun run preview
+```
+
 ### Configuration
 
 Le fichier `liho.config.ts` permet de configurer le projet :
@@ -323,7 +333,7 @@ Ou avec la variable d'environnement :
 PORT=8080 npm start
 ```
 
-### Docker (exemple)
+### Docker (Node.js)
 
 ```dockerfile
 FROM node:22-alpine
@@ -332,6 +342,17 @@ COPY dist ./
 RUN npm install
 EXPOSE 4010
 CMD ["npm", "start"]
+```
+
+### Docker (Bun - plus performant)
+
+```dockerfile
+FROM oven/bun:alpine
+WORKDIR /app
+COPY dist ./
+RUN bun install
+EXPOSE 4010
+CMD ["bun", "server.js"]
 ```
 
 ## FAQ
