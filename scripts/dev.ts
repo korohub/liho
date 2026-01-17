@@ -71,6 +71,19 @@ async function startDevServer() {
 
   const accessLogEnabled = isAccessLogEnabled(config.logging.accessLog)
 
+  // Filtre pour ignorer les requêtes internes Vite en dev
+  const shouldLogRequest = (url: string): boolean => {
+    if (!config.logging.accessLog.devFilter) return true
+    // Ignorer les requêtes Vite internes
+    if (url.startsWith('/@')) return false           // /@vite/, /@fs/
+    if (url.includes('/node_modules/')) return false // dépendances
+    if (url.includes('/_generated/')) return false   // fichiers générés
+    if (url.includes('.well-known/')) return false   // metadata navigateur
+    if (url.endsWith('.tsx') || url.endsWith('.ts')) return false  // sources
+    if (url.endsWith('.css') && url !== '/index.css') return false // css modules
+    return true
+  }
+
   const server = createServer(async (req, res) => {
     const url = req.url || '/'
     const startTime = Date.now()
@@ -148,6 +161,16 @@ async function startDevServer() {
     }
 
     // Tout le reste → Vite
+    // Logger quand la réponse est terminée (Vite gère tout directement)
+    if (accessLogEnabled && shouldLogRequest(url)) {
+      res.on('finish', () => {
+        const duration = Date.now() - startTime
+        const size = parseInt(res.getHeader('content-length') as string) || 0
+        const logLine = formatAccessLog(ip, req.method || 'GET', url, res.statusCode, size, referer, userAgent, duration)
+        writeAccessLog(config.logging.accessLog, logLine)
+      })
+    }
+
     vite.middlewares(req, res, async () => {
       const fs = await import('fs/promises')
       const path = await import('path')
@@ -162,23 +185,9 @@ async function startDevServer() {
         res.statusCode = 200
         res.setHeader('Content-Type', 'text/html')
         res.end(html)
-
-        // Access log pour les pages HTML
-        if (accessLogEnabled) {
-          const duration = Date.now() - startTime
-          const logLine = formatAccessLog(ip, req.method || 'GET', url, 200, html.length, referer, userAgent, duration)
-          writeAccessLog(config.logging.accessLog, logLine)
-        }
       } catch (e) {
         res.statusCode = 500
         res.end('Error loading page')
-
-        // Access log pour les erreurs
-        if (accessLogEnabled) {
-          const duration = Date.now() - startTime
-          const logLine = formatAccessLog(ip, req.method || 'GET', url, 500, 0, referer, userAgent, duration)
-          writeAccessLog(config.logging.accessLog, logLine)
-        }
       }
     })
   })

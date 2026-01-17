@@ -15,8 +15,9 @@ export default defineConfig({
     // Access log format Apache Combined + temps de réponse
     // Ex: 127.0.0.1 - - [17/Jan/2026:18:30:45 +0100] "GET /api/users HTTP/1.1" 200 1234 "-" "Mozilla/5.0..." 45ms
     accessLog: {
-      console: false,     // Afficher en console
-      file: undefined     // Chemin fichier (ex: './logs/access.log')
+      console: true,      // Afficher en console
+      file: undefined,    // Chemin fichier (ex: './logs/access.log')
+      devFilter: true     // Filtrer le bruit Vite en dev (/@vite, .tsx, node_modules...)
       // Note: l'écriture disque ajoute une I/O par requête
       // Fort trafic: préférer console + redirection système (node server.js >> access.log)
       // Penser à configurer logrotate si file est activé

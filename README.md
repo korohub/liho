@@ -188,7 +188,8 @@ export default defineConfig({
     apiRequests: true, // Log des requêtes API
     accessLog: {
       console: false,  // Log Apache Combined en console
-      file: null       // Chemin fichier (ex: './logs/access.log')
+      file: null,      // Chemin fichier (ex: './logs/access.log')
+      devFilter: true  // Filtrer le bruit Vite en dev
     }
   },
   build: {

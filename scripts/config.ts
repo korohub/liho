@@ -29,6 +29,8 @@ export interface LihoConfig {
       console?: boolean
       /** Chemin du fichier de log (désactivé si non spécifié) */
       file?: string
+      /** Filtrer les requêtes Vite en dev (défaut: true) */
+      devFilter?: boolean
     }
   }
 
@@ -53,6 +55,7 @@ export interface ResolvedConfig {
     accessLog: {
       console: boolean
       file: string | null
+      devFilter: boolean
     }
   }
   build: {
@@ -72,7 +75,8 @@ const defaultConfig: ResolvedConfig = {
     apiRequests: true,
     accessLog: {
       console: false,
-      file: null
+      file: null,
+      devFilter: true
     }
   },
   build: {
@@ -123,7 +127,8 @@ export async function loadConfig(): Promise<ResolvedConfig> {
         ...userConfig.logging,
         accessLog: {
           console: userConfig.logging?.accessLog?.console ?? defaultConfig.logging.accessLog.console,
-          file: userConfig.logging?.accessLog?.file ?? defaultConfig.logging.accessLog.file
+          file: userConfig.logging?.accessLog?.file ?? defaultConfig.logging.accessLog.file,
+          devFilter: userConfig.logging?.accessLog?.devFilter ?? defaultConfig.logging.accessLog.devFilter
         }
       },
       build: { ...defaultConfig.build, ...userConfig.build }
