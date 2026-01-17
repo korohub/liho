@@ -31,6 +31,10 @@ function formatApacheDate(date: Date): string {
   return `${day}/${month}/${year}:${hours}:${minutes}:${seconds} ${tzSign}${tzHours}${tzMinutes}`
 }
 
+// Compteur d'erreurs pour éviter le spam de logs
+let logErrorCount = 0
+const MAX_LOG_ERRORS = 5
+
 function writeAccessLog(ip: string, method: string, path: string, status: number, size: number, referer: string | null, userAgent: string | null, durationMs: number): void {
   const date = formatApacheDate(new Date())
   const logLine = `${ip} - - [${date}] "${method} ${path} HTTP/1.1" ${status} ${size} "${referer || '-'}" "${userAgent || '-'}" ${durationMs}ms`
@@ -43,7 +47,16 @@ function writeAccessLog(ip: string, method: string, path: string, status: number
     // Écriture asynchrone pour ne pas bloquer l'event loop
     mkdir(dirname(__ACCESS_LOG_FILE__), { recursive: true })
       .then(() => appendFile(__ACCESS_LOG_FILE__, logLine + '\n'))
-      .catch(() => { /* ignore */ })
+      .catch((err: Error) => {
+        // Limiter le nombre d'erreurs affichées pour éviter le spam
+        if (logErrorCount < MAX_LOG_ERRORS) {
+          logErrorCount++
+          console.warn(`[Liho] Erreur d'écriture de log (${logErrorCount}/${MAX_LOG_ERRORS}):`, err.message)
+          if (logErrorCount === MAX_LOG_ERRORS) {
+            console.warn('[Liho] Les erreurs de log suivantes seront ignorées.')
+          }
+        }
+      })
   }
 }
 

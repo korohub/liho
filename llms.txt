@@ -13,10 +13,13 @@
 ## Commandes
 
 ```bash
-npm run dev      # Dev server http://localhost:4010
-npm run build    # Build production → dist/
-npm run preview  # Tester le build localement
-npm start        # Production
+npm run dev           # Dev server http://localhost:4010
+npm run build         # Build production → dist/
+npm run preview       # Tester le build localement
+npm start             # Production
+npm test              # Tests
+npm run test:watch    # Tests en mode watch
+npm run test:coverage # Tests avec couverture
 ```
 
 ---
@@ -95,12 +98,38 @@ export default function RootLayout() {
 
 ```tsx
 // src/routes/error.tsx
-import { useRouteError } from 'react-router-dom'
+import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom'
 
 export default function ErrorPage() {
-  const error = useRouteError() as Error
-  return <div>Error: {error.message}</div>
+  const error = useRouteError()
+
+  // Gérer les différents types d'erreurs
+  if (isRouteErrorResponse(error)) {
+    return <div>Erreur {error.status}: {error.statusText}</div>
+  }
+
+  if (error instanceof Error) {
+    return <div>Erreur: {error.message}</div>
+  }
+
+  return <div>Erreur inconnue</div>
 }
+```
+
+### Layouts imbriqués (comportement)
+
+1. Chaque `layout.tsx` enveloppe toutes les pages de son dossier et sous-dossiers
+2. Les layouts s'empilent : parent → enfant → page
+3. Chaque layout doit inclure `<Outlet />` pour afficher son contenu
+4. Les error boundaries capturent les erreurs de leur route et enfants
+5. Les loading states s'affichent pendant le chargement Suspense
+
+```
+Structure: layout racine → layout dashboard → page
+URL /dashboard/settings :
+  RootLayout
+    └── DashboardLayout
+          └── SettingsPage
 ```
 
 ---
@@ -151,13 +180,30 @@ export async function DELETE(c: Context) {
 
 ```typescript
 // src/routes/api/middleware.ts → appliqué sur /api/*
-import { createMiddleware } from 'hono/factory'
+import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
+import type { Context, Next } from 'hono'
 
-export default createMiddleware(async (c, next) => {
-  console.log(`${c.req.method} ${c.req.path}`)
-  await next()
-})
+// Export default ou onRequest pour que le middleware soit détecté
+export default async function middleware(c: Context, next: Next) {
+  // CORS
+  const corsMiddleware = cors({ origin: '*' })
+  await corsMiddleware(c, async () => {})
+
+  // Security headers
+  const securityMiddleware = secureHeaders()
+  await securityMiddleware(c, next)
+}
 ```
+
+### Exports middleware reconnus
+
+| Export | Description |
+|--------|-------------|
+| `default` | Middleware principal (recommandé) |
+| `onRequest` | Alternative au default |
+
+**Note** : Les exports nommés comme `corsMiddleware` ne sont PAS détectés automatiquement. Utilisez `default` pour combiner vos middlewares.
 
 ---
 
@@ -218,7 +264,17 @@ Import: `import { ... } from '../lib/middleware'`
 | `when(condition, middleware)` | Middleware conditionnel |
 | `guard(condition, status, msg)` | Bloque si condition false |
 | `validateBody(validator)` | Valide le body JSON |
-| `cache(ttl, handler)` | Cache mémoire simple |
+| `cache(ttl, handler)` | Cache mémoire avec nettoyage auto |
+| `clearCache(pattern?)` | Vide le cache (tout ou par pattern) |
+| `getCacheStats()` | Statistiques du cache |
+| `stopCacheCleanup()` | Arrête le nettoyage automatique |
+
+### Cache mémoire
+
+Le cache inclut :
+- Nettoyage automatique des entrées expirées (toutes les 60s)
+- Limite de taille (1000 entrées max)
+- Éviction LRU quand le cache est plein
 
 ### Exemple
 
@@ -404,12 +460,47 @@ CMD ["npm", "start"]
 
 ---
 
+## TESTS
+
+Le projet utilise Vitest pour les tests.
+
+```bash
+npm test              # Exécuter les tests
+npm run test:watch    # Mode watch
+npm run test:coverage # Avec couverture de code
+```
+
+Les tests sont dans le dossier `tests/` :
+- `router.test.ts` - Tests du routeur file-based
+- `config.test.ts` - Tests de la configuration
+- `middleware.test.ts` - Tests des utilitaires middleware
+- `logger.test.ts` - Tests du logger
+
+---
+
+## VALIDATION DE CONFIG
+
+La configuration est validée automatiquement :
+
+| Paramètre | Validation |
+|-----------|------------|
+| `server.port` | Entier entre 1 et 65535 |
+| `server.host` | Chaîne non vide |
+| `logging.level` | 'none', 'minimal', ou 'verbose' |
+| `build.outDir` | Pas de dossiers protégés (src, node_modules) |
+
+Erreurs de config → `ConfigValidationError` avec message explicite.
+
+---
+
 ## RÈGLES IMPORTANTES
 
 1. **Ne jamais modifier `src/_generated/`** - régénéré automatiquement
 2. **Pages = `page.tsx`** dans `src/routes/`
 3. **API = `.ts`** dans `src/routes/api/`
 4. **Layouts nested** - chaque `layout.tsx` wrap ses enfants
-5. **Utiliser Hono natif** pour cors, csrf, jwt, logger, etc.
-6. **Variables env client** - préfixer avec `VITE_`
-7. **Log API intégré** - configurable via `liho.config.ts`
+5. **Middleware API = `default` ou `onRequest`** dans middleware.ts
+6. **Utiliser Hono natif** pour cors, csrf, jwt, logger, etc.
+7. **Variables env client** - préfixer avec `VITE_`
+8. **Log API intégré** - configurable via `liho.config.ts`
+9. **Tests** - exécuter `npm test` avant de commit

@@ -8,42 +8,84 @@ import { join, relative, basename } from 'path'
 import { log } from './colors.js'
 
 /**
+ * Supprime les commentaires et les strings d'un fichier TypeScript
+ * pour éviter les faux positifs lors de l'analyse des exports
+ */
+function stripCommentsAndStrings(content: string): string {
+  // Supprimer les commentaires multi-lignes /* ... */
+  content = content.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  // Supprimer les commentaires single-line // ...
+  content = content.replace(/\/\/.*$/gm, '')
+
+  // Supprimer les template literals `...`
+  content = content.replace(/`[\s\S]*?`/g, '""')
+
+  // Supprimer les strings "..." et '...'
+  content = content.replace(/"(?:[^"\\]|\\.)*"/g, '""')
+  content = content.replace(/'(?:[^'\\]|\\.)*'/g, "''")
+
+  return content
+}
+
+/**
  * Analyse les exports d'un fichier TypeScript
  * Retourne la liste des exports nommés trouvés
+ *
+ * Supporte :
+ * - export function NAME
+ * - export async function NAME
+ * - export const NAME
+ * - export default ...
+ * - export { NAME }
+ * - export { NAME as ALIAS }
  */
 function analyzeExports(filePath: string): string[] {
   if (!existsSync(filePath)) return []
 
-  const content = readFileSync(filePath, 'utf-8')
+  let content = readFileSync(filePath, 'utf-8')
+
+  // Nettoyer le contenu pour éviter les faux positifs
+  content = stripCommentsAndStrings(content)
+
   const exports: string[] = []
 
-  // Patterns pour détecter les exports
-  // export async function GET
-  // export function GET
-  // export const GET
-  // export { GET }
-
-  const patterns = [
-    /export\s+(?:async\s+)?function\s+(\w+)/g,
-    /export\s+const\s+(\w+)/g,
-    /export\s+default\s/g,
-  ]
-
-  // Fonctions et constantes exportées
+  // Pattern pour export function / async function
+  const funcPattern = /export\s+(?:async\s+)?function\s+(\w+)/g
   let match
-  while ((match = patterns[0].exec(content)) !== null) {
-    exports.push(match[1])
-  }
-  while ((match = patterns[1].exec(content)) !== null) {
+  while ((match = funcPattern.exec(content)) !== null) {
     exports.push(match[1])
   }
 
-  // Export default
-  if (patterns[2].test(content)) {
+  // Pattern pour export const/let/var
+  const constPattern = /export\s+(?:const|let|var)\s+(\w+)/g
+  while ((match = constPattern.exec(content)) !== null) {
+    exports.push(match[1])
+  }
+
+  // Pattern pour export { NAME } ou export { NAME as ALIAS }
+  // On capture le nom original (avant 'as' s'il y en a un)
+  const namedExportPattern = /export\s*\{([^}]+)\}/g
+  while ((match = namedExportPattern.exec(content)) !== null) {
+    const items = match[1].split(',')
+    for (const item of items) {
+      const trimmed = item.trim()
+      // Gérer "NAME as ALIAS" - prendre le nom original
+      const parts = trimmed.split(/\s+as\s+/)
+      const exportName = parts[0].trim()
+      if (exportName && /^\w+$/.test(exportName)) {
+        exports.push(exportName)
+      }
+    }
+  }
+
+  // Export default (fonction, classe, ou expression)
+  if (/export\s+default\s/.test(content)) {
     exports.push('default')
   }
 
-  return exports
+  // Dédupliquer
+  return [...new Set(exports)]
 }
 
 const ROUTES_DIR = 'src/routes'

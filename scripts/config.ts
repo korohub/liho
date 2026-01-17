@@ -86,6 +86,79 @@ const defaultConfig: ResolvedConfig = {
 }
 
 /**
+ * Erreur de validation de la configuration
+ */
+export class ConfigValidationError extends Error {
+  constructor(message: string) {
+    super(`[Liho Config] ${message}`)
+    this.name = 'ConfigValidationError'
+  }
+}
+
+/**
+ * Valide la configuration utilisateur
+ * Lance une erreur si la configuration est invalide
+ */
+function validateConfig(config: LihoConfig): void {
+  // Validation du port
+  if (config.server?.port !== undefined) {
+    const port = config.server.port
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new ConfigValidationError(
+        `Port invalide: ${port}. Le port doit être un entier entre 1 et 65535.`
+      )
+    }
+  }
+
+  // Validation du host
+  if (config.server?.host !== undefined) {
+    const host = config.server.host
+    if (typeof host !== 'string' || host.trim() === '') {
+      throw new ConfigValidationError(
+        `Host invalide: ${host}. Le host doit être une chaîne non vide.`
+      )
+    }
+  }
+
+  // Validation du niveau de log
+  if (config.logging?.level !== undefined) {
+    const validLevels = ['none', 'minimal', 'verbose']
+    if (!validLevels.includes(config.logging.level)) {
+      throw new ConfigValidationError(
+        `Niveau de log invalide: ${config.logging.level}. Valeurs acceptées: ${validLevels.join(', ')}`
+      )
+    }
+  }
+
+  // Validation du chemin de fichier de log
+  if (config.logging?.accessLog?.file !== undefined) {
+    const file = config.logging.accessLog.file
+    if (typeof file !== 'string' || file.trim() === '') {
+      throw new ConfigValidationError(
+        `Chemin de fichier de log invalide: ${file}. Doit être une chaîne non vide ou undefined.`
+      )
+    }
+  }
+
+  // Validation du dossier de sortie
+  if (config.build?.outDir !== undefined) {
+    const outDir = config.build.outDir
+    if (typeof outDir !== 'string' || outDir.trim() === '') {
+      throw new ConfigValidationError(
+        `Dossier de sortie invalide: ${outDir}. Doit être une chaîne non vide.`
+      )
+    }
+    // Vérifier que le chemin ne pointe pas vers des dossiers sensibles
+    const forbidden = ['/', '/home', '/root', '/etc', '/var', '/usr', 'node_modules', 'src']
+    if (forbidden.includes(outDir.toLowerCase())) {
+      throw new ConfigValidationError(
+        `Dossier de sortie interdit: ${outDir}. Ce chemin est protégé.`
+      )
+    }
+  }
+}
+
+/**
  * Helper pour définir la configuration avec autocomplétion TypeScript
  *
  * @example
@@ -100,12 +173,14 @@ const defaultConfig: ResolvedConfig = {
  * ```
  */
 export function defineConfig(config: LihoConfig): LihoConfig {
+  // Valider au moment de la définition pour des erreurs précoces
+  validateConfig(config)
   return config
 }
 
 /**
  * Charge la configuration depuis liho.config.ts
- * Fusionne avec les valeurs par défaut
+ * Fusionne avec les valeurs par défaut et valide
  */
 export async function loadConfig(): Promise<ResolvedConfig> {
   const configPath = resolve('liho.config.ts')
@@ -118,6 +193,9 @@ export async function loadConfig(): Promise<ResolvedConfig> {
     // Import dynamique du fichier de config
     const configModule = await import(pathToFileURL(configPath).href)
     const userConfig: LihoConfig = configModule.default || {}
+
+    // Valider la configuration utilisateur
+    validateConfig(userConfig)
 
     // Fusion profonde avec les valeurs par défaut
     return {
@@ -134,6 +212,10 @@ export async function loadConfig(): Promise<ResolvedConfig> {
       build: { ...defaultConfig.build, ...userConfig.build }
     }
   } catch (error) {
+    // Propager les erreurs de validation
+    if (error instanceof ConfigValidationError) {
+      throw error
+    }
     console.warn('[Liho] Error loading config, using defaults:', error)
     return defaultConfig
   }

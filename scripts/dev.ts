@@ -4,7 +4,7 @@
  */
 
 import { createServer } from 'http'
-import { watch } from 'fs'
+import chokidar from 'chokidar'
 import { buildRoutes } from './router.js'
 import { log } from './colors.js'
 import { loadConfig } from './config.js'
@@ -13,6 +13,17 @@ import type { ViteDevServer } from 'vite'
 import type { ResolvedConfig } from './config.js'
 
 let config: ResolvedConfig
+
+/**
+ * Crée un debouncer pour éviter les appels multiples
+ */
+function debounce<T extends (...args: unknown[]) => void>(fn: T, delay: number): T {
+  let timeout: NodeJS.Timeout | null = null
+  return ((...args: unknown[]) => {
+    if (timeout) clearTimeout(timeout)
+    timeout = setTimeout(() => fn(...args), delay)
+  }) as T
+}
 
 async function startDevServer() {
   // Charger la configuration
@@ -34,38 +45,51 @@ async function startDevServer() {
     root: 'src'
   })
 
-  // Watch des changements dans src/routes avec hot reload
-  watch('src/routes', { recursive: true }, (event, filename) => {
-    if (filename?.endsWith('.tsx') || filename?.endsWith('.ts')) {
-      log.change(filename)
-      buildRoutes()
+  // Fonction de rebuild avec debounce pour éviter les appels multiples
+  const handleRouteChange = debounce((path: string) => {
+    const filename = path.replace(/^src\/routes\//, '')
+    log.change(filename)
+    buildRoutes()
 
-      // Invalider le module API dans le cache Vite SSR
-      const apiModule = vite.moduleGraph.getModuleById('\0/_generated/api.ts')
-      if (apiModule) {
-        vite.moduleGraph.invalidateModule(apiModule)
-      }
+    // Invalider le module API dans le cache Vite SSR
+    const apiModule = vite.moduleGraph.getModuleById('\0/_generated/api.ts')
+    if (apiModule) {
+      vite.moduleGraph.invalidateModule(apiModule)
+    }
 
-      // Envoyer un signal de full reload au navigateur via Vite HMR
-      vite.ws.send({
-        type: 'full-reload',
-        path: '*'
-      })
+    // Envoyer un signal de full reload au navigateur via Vite HMR
+    vite.ws.send({
+      type: 'full-reload',
+      path: '*'
+    })
 
-      log.success('Hot reload triggered')
+    log.success('Hot reload triggered')
+  }, 100)
+
+  // Watch des changements avec chokidar (plus fiable que fs.watch)
+  const routesWatcher = chokidar.watch('src/routes', {
+    ignored: /(^|[\/\\])\../, // Ignorer les fichiers cachés
+    persistent: true,
+    ignoreInitial: true
+  })
+
+  routesWatcher.on('all', (event, path) => {
+    if (path.endsWith('.tsx') || path.endsWith('.ts')) {
+      handleRouteChange(path)
     }
   })
 
   // Watch des changements dans src/components et src/lib
-  watch('src/components', { recursive: true }, (_event, filename) => {
-    if (filename?.endsWith('.tsx') || filename?.endsWith('.ts')) {
-      log.change(`components/${filename}`)
-    }
+  const componentsWatcher = chokidar.watch(['src/components', 'src/lib'], {
+    ignored: /(^|[\/\\])\../,
+    persistent: true,
+    ignoreInitial: true
   })
 
-  watch('src/lib', { recursive: true }, (_event, filename) => {
-    if (filename?.endsWith('.tsx') || filename?.endsWith('.ts')) {
-      log.change(`lib/${filename}`)
+  componentsWatcher.on('all', (event, path) => {
+    if (path.endsWith('.tsx') || path.endsWith('.ts')) {
+      const relativePath = path.replace(/^src\//, '')
+      log.change(relativePath)
     }
   })
 

@@ -164,9 +164,65 @@ export function validateBody(validator: (body: unknown) => string | null | Promi
  * }
  * ```
  */
-const cacheStore = new Map<string, { data: Response; expires: number }>()
+
+interface CacheEntry {
+  data: Response
+  expires: number
+}
+
+interface CacheConfig {
+  maxSize: number           // Nombre maximum d'entrées
+  cleanupInterval: number   // Intervalle de nettoyage en ms
+}
+
+const DEFAULT_CACHE_CONFIG: CacheConfig = {
+  maxSize: 1000,
+  cleanupInterval: 60000  // 1 minute
+}
+
+const cacheStore = new Map<string, CacheEntry>()
+let cleanupTimer: NodeJS.Timeout | null = null
+
+/**
+ * Démarre le nettoyage automatique du cache
+ */
+function startCacheCleanup(interval: number = DEFAULT_CACHE_CONFIG.cleanupInterval) {
+  if (cleanupTimer) return
+
+  cleanupTimer = setInterval(() => {
+    const now = Date.now()
+    let cleaned = 0
+
+    for (const [key, entry] of cacheStore) {
+      if (entry.expires <= now) {
+        cacheStore.delete(key)
+        cleaned++
+      }
+    }
+
+    if (cleaned > 0 && process.env.NODE_ENV !== 'production') {
+      console.log(`[Cache] Cleaned ${cleaned} expired entries, ${cacheStore.size} remaining`)
+    }
+  }, interval)
+
+  // Ne pas bloquer l'arrêt du processus
+  cleanupTimer.unref()
+}
+
+/**
+ * Arrête le nettoyage automatique du cache
+ */
+export function stopCacheCleanup() {
+  if (cleanupTimer) {
+    clearInterval(cleanupTimer)
+    cleanupTimer = null
+  }
+}
 
 export function cache(ttlSeconds: number, handler: (c: Context) => Promise<Response>) {
+  // Démarrer le nettoyage automatique au premier appel
+  startCacheCleanup()
+
   return async (c: Context): Promise<Response> => {
     const key = `${c.req.method}:${c.req.url}`
     const now = Date.now()
@@ -174,6 +230,22 @@ export function cache(ttlSeconds: number, handler: (c: Context) => Promise<Respo
     const cached = cacheStore.get(key)
     if (cached && cached.expires > now) {
       return cached.data.clone()
+    }
+
+    // Vérifier la taille du cache avant d'ajouter
+    if (cacheStore.size >= DEFAULT_CACHE_CONFIG.maxSize) {
+      // Supprimer les entrées expirées d'abord
+      for (const [k, entry] of cacheStore) {
+        if (entry.expires <= now) {
+          cacheStore.delete(k)
+        }
+      }
+
+      // Si toujours plein, supprimer la plus ancienne entrée
+      if (cacheStore.size >= DEFAULT_CACHE_CONFIG.maxSize) {
+        const firstKey = cacheStore.keys().next().value
+        if (firstKey) cacheStore.delete(firstKey)
+      }
     }
 
     const response = await handler(c)
@@ -199,4 +271,23 @@ export function clearCache(pattern?: string) {
   } else {
     cacheStore.clear()
   }
+}
+
+/**
+ * Retourne les statistiques du cache
+ */
+export function getCacheStats() {
+  const now = Date.now()
+  let expired = 0
+  let active = 0
+
+  for (const entry of cacheStore.values()) {
+    if (entry.expires <= now) {
+      expired++
+    } else {
+      active++
+    }
+  }
+
+  return { total: cacheStore.size, active, expired, maxSize: DEFAULT_CACHE_CONFIG.maxSize }
 }

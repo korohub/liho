@@ -55,6 +55,10 @@ export function formatAccessLog(
   return `${ip} - - [${date}] "${method} ${path} HTTP/1.1" ${status} ${size} "${ref}" "${ua}" ${durationMs}ms`
 }
 
+// Compteur d'erreurs pour éviter le spam de logs
+let logErrorCount = 0
+const MAX_LOG_ERRORS = 5
+
 /**
  * Écrit une ligne de log selon la configuration (non-bloquant)
  */
@@ -68,8 +72,24 @@ export function writeAccessLog(config: AccessLogConfig, logLine: string): void {
     // Écriture asynchrone pour ne pas bloquer l'event loop
     mkdir(dirname(filePath), { recursive: true })
       .then(() => appendFile(filePath, logLine + '\n'))
-      .catch(() => { /* ignore silently */ })
+      .catch((err: Error) => {
+        // Limiter le nombre d'erreurs affichées pour éviter le spam
+        if (logErrorCount < MAX_LOG_ERRORS) {
+          logErrorCount++
+          console.warn(`[Liho] Erreur d'écriture de log (${logErrorCount}/${MAX_LOG_ERRORS}):`, err.message)
+          if (logErrorCount === MAX_LOG_ERRORS) {
+            console.warn('[Liho] Les erreurs de log suivantes seront ignorées.')
+          }
+        }
+      })
   }
+}
+
+/**
+ * Réinitialise le compteur d'erreurs de log (utile pour les tests)
+ */
+export function resetLogErrorCount(): void {
+  logErrorCount = 0
 }
 
 /**

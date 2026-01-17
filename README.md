@@ -170,6 +170,9 @@ export default function Navigation() {
 | `npm run build` | Build pour la production |
 | `npm run preview` | Teste le build localement |
 | `npm start` | Lance le serveur de production |
+| `npm test` | Lance les tests |
+| `npm run test:watch` | Tests en mode watch |
+| `npm run test:coverage` | Tests avec couverture de code |
 
 ### Configuration
 
@@ -242,13 +245,188 @@ Format de sortie :
 
 ## Conventions de nommage
 
-| Fichier | Résultat |
-|---------|----------|
-| `routes/page.tsx` | Route `/` |
-| `routes/about/page.tsx` | Route `/about` |
-| `routes/blog/[slug]/page.tsx` | Route `/blog/:slug` |
-| `routes/api/users.ts` | API `/api/users` |
-| `routes/api/users/[id].ts` | API `/api/users/:id` |
+### Pages
+
+| Fichier | URL | Description |
+|---------|-----|-------------|
+| `routes/page.tsx` | `/` | Page d'accueil |
+| `routes/about/page.tsx` | `/about` | Page statique |
+| `routes/blog/[slug]/page.tsx` | `/blog/:slug` | Page dynamique |
+| `routes/[...404]/page.tsx` | `/*` | Page catch-all (404) |
+| `routes/(auth)/login/page.tsx` | `/login` | Route group (pas de segment URL) |
+
+### Layouts et fichiers spéciaux
+
+| Fichier | Description |
+|---------|-------------|
+| `layout.tsx` | Layout englobant avec `<Outlet />` |
+| `error.tsx` | Error boundary pour la route et ses enfants |
+| `loading.tsx` | Composant Suspense fallback |
+
+### API
+
+| Fichier | URL | Description |
+|---------|-----|-------------|
+| `routes/api/users.ts` | `/api/users` | Route API |
+| `routes/api/users/index.ts` | `/api/users` | Route API (collection) |
+| `routes/api/users/[id].ts` | `/api/users/:id` | Route API dynamique |
+| `routes/api/middleware.ts` | `/api/*` | Middleware global API |
+
+## Layouts imbriqués (Nested Layouts)
+
+Les layouts permettent de partager une structure commune entre plusieurs pages.
+
+### Fonctionnement
+
+1. Chaque `layout.tsx` enveloppe toutes les pages de son dossier et sous-dossiers
+2. Les layouts s'empilent : parent → enfant → page
+3. Chaque layout doit inclure `<Outlet />` pour afficher son contenu
+
+### Exemple de structure
+
+```
+src/routes/
+├── layout.tsx          # Layout racine (header/footer)
+├── page.tsx            # Page d'accueil
+├── dashboard/
+│   ├── layout.tsx      # Layout dashboard (sidebar)
+│   ├── page.tsx        # /dashboard
+│   └── settings/
+│       └── page.tsx    # /dashboard/settings
+```
+
+### Layout racine
+
+```tsx
+// src/routes/layout.tsx
+import { Outlet } from 'react-router-dom'
+
+export default function RootLayout() {
+  return (
+    <div className="min-h-screen">
+      <header className="bg-blue-600 text-white p-4">
+        <h1>Mon App</h1>
+      </header>
+      <main>
+        <Outlet />  {/* Le contenu des pages s'affiche ici */}
+      </main>
+      <footer className="bg-gray-100 p-4">
+        © 2026
+      </footer>
+    </div>
+  )
+}
+```
+
+### Layout imbriqué
+
+```tsx
+// src/routes/dashboard/layout.tsx
+import { Outlet, Link } from 'react-router-dom'
+
+export default function DashboardLayout() {
+  return (
+    <div className="flex">
+      <aside className="w-64 bg-gray-800 text-white p-4">
+        <nav>
+          <Link to="/dashboard">Overview</Link>
+          <Link to="/dashboard/settings">Settings</Link>
+        </nav>
+      </aside>
+      <div className="flex-1 p-8">
+        <Outlet />  {/* Les pages dashboard s'affichent ici */}
+      </div>
+    </div>
+  )
+}
+```
+
+### Route Groups
+
+Les route groups `(nom)` permettent d'organiser les fichiers sans affecter l'URL :
+
+```
+src/routes/
+├── (marketing)/
+│   ├── page.tsx            # → /
+│   ├── about/page.tsx      # → /about
+│   └── pricing/page.tsx    # → /pricing
+├── (app)/
+│   ├── layout.tsx          # Layout app seulement
+│   ├── dashboard/page.tsx  # → /dashboard
+│   └── settings/page.tsx   # → /settings
+```
+
+### Error Boundaries
+
+Chaque `error.tsx` capture les erreurs de sa route et de ses enfants :
+
+```tsx
+// src/routes/dashboard/error.tsx
+import { useRouteError, isRouteErrorResponse, Link } from 'react-router-dom'
+
+export default function DashboardError() {
+  const error = useRouteError()
+
+  if (isRouteErrorResponse(error)) {
+    return <div>Erreur {error.status}: {error.statusText}</div>
+  }
+
+  return (
+    <div>
+      <h1>Erreur Dashboard</h1>
+      <p>{error instanceof Error ? error.message : 'Erreur inconnue'}</p>
+      <Link to="/dashboard">Retour</Link>
+    </div>
+  )
+}
+```
+
+## Middleware API
+
+Le middleware API s'applique à toutes les routes `/api/*`.
+
+### Configuration
+
+Créez `src/routes/api/middleware.ts` avec un export `default` :
+
+```typescript
+// src/routes/api/middleware.ts
+import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
+import type { Context, Next } from 'hono'
+
+export default async function middleware(c: Context, next: Next) {
+  // CORS
+  const corsMiddleware = cors({ origin: '*' })
+  await corsMiddleware(c, async () => {})
+
+  // Security headers
+  const securityMiddleware = secureHeaders()
+  await securityMiddleware(c, next)
+}
+```
+
+### Exports reconnus
+
+| Export | Description |
+|--------|-------------|
+| `default` | Middleware principal |
+| `onRequest` | Alternative au default |
+
+### Middleware par dossier
+
+Vous pouvez créer des middlewares spécifiques à un sous-dossier :
+
+```
+src/routes/api/
+├── middleware.ts           # /api/* (global)
+├── public/
+│   └── hello.ts            # /api/public/hello (pas de protection)
+└── protected/
+    ├── middleware.ts       # /api/protected/* (auth requise)
+    └── users.ts            # /api/protected/users
+```
 
 ## Format des routes API
 
