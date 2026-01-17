@@ -10,6 +10,14 @@
 - Tailwind CSS (styling)
 - TypeScript
 
+## Installation
+
+```bash
+npx create-liho mon-app
+cd mon-app
+npm run dev
+```
+
 ## Commandes
 
 ```bash
@@ -493,6 +501,20 @@ Erreurs de config → `ConfigValidationError` avec message explicite.
 
 ---
 
+## VERSIONING
+
+Semantic Versioning (SemVer) : `MAJOR.MINOR.PATCH`
+
+```bash
+npm version patch  # Bug fix (0.1.0 → 0.1.1)
+npm version minor  # Nouvelle fonctionnalité (0.1.0 → 0.2.0)
+npm version major  # Breaking change (0.1.0 → 1.0.0)
+```
+
+Workflow : commit → `npm version` → push avec tags.
+
+---
+
 ## RÈGLES IMPORTANTES
 
 1. **Ne jamais modifier `src/_generated/`** - régénéré automatiquement
@@ -504,3 +526,4 @@ Erreurs de config → `ConfigValidationError` avec message explicite.
 7. **Variables env client** - préfixer avec `VITE_`
 8. **Log API intégré** - configurable via `liho.config.ts`
 9. **Tests** - exécuter `npm test` avant de commit
+10. **Versioning** - utiliser `npm version` (patch/minor/major)

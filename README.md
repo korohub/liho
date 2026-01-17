@@ -13,14 +13,32 @@ Un starter React minimaliste avec file-based routing, inspiré de SvelteKit mais
 
 ## Démarrage rapide
 
+### Nouveau projet
+
 ```bash
-# Installation
+# Créer un nouveau projet Liho
+npx create-liho mon-app
+
+# Aller dans le dossier
+cd mon-app
+
+# Installer les dépendances
 npm install
 
 # Lancer en développement
 npm run dev
 
 # Ouvrir http://localhost:4010
+```
+
+### Projet existant
+
+```bash
+# Installation des dépendances
+npm install
+
+# Lancer en développement
+npm run dev
 ```
 
 ## Structure du projet
@@ -30,10 +48,12 @@ liho/
 ├── src/
 │   ├── routes/                 # Tes pages et API
 │   │   ├── page.tsx            # Page d'accueil (/)
-│   │   ├── about/
-│   │   │   └── page.tsx        # Page /about
+│   │   ├── layout.tsx          # Layout racine
+│   │   ├── error.tsx           # Error boundary
+│   │   ├── loading.tsx         # Loading state
 │   │   └── api/
-│   │       └── hello.ts        # Route API /api/hello
+│   │       ├── hello.ts        # Route API /api/hello
+│   │       └── middleware.ts   # Middleware API global
 │   │
 │   ├── components/             # Tes composants réutilisables
 │   ├── lib/                    # Tes utilitaires
@@ -44,25 +64,16 @@ liho/
 │
 ├── public/                     # Assets statiques (favicon, images)
 ├── server.ts                   # Serveur de production
-├── liho.config.ts          # Configuration du projet
+├── liho.config.ts              # Configuration du projet
 └── package.json
 ```
 
 ## Guide de démarrage
 
-### 1. Nettoyer les exemples
+### 1. Créer ta première page
 
-Supprime les pages d'exemple :
-- `src/routes/about/` (dossier complet)
-- `src/routes/users/` (dossier complet)
-
-Garde uniquement :
-- `src/routes/page.tsx` (ta page d'accueil)
-- `src/routes/api/hello.ts` (exemple d'API, à modifier ou supprimer)
-
-### 2. Créer ta première page
-
-Crée un fichier `page.tsx` dans un nouveau dossier :
+1. Crée un dossier `dashboard/` dans `src/routes/`
+2. Crée un fichier `page.tsx` dedans :
 
 ```tsx
 // src/routes/dashboard/page.tsx
@@ -76,11 +87,18 @@ export default function DashboardPage() {
 }
 ```
 
-C'est tout ! La route `/dashboard` est automatiquement créée.
+C'est tout ! Le nom du dossier devient l'URL : `/dashboard`.
 
-### 3. Créer une page avec paramètre dynamique
+### 2. Créer une page avec paramètre dynamique
 
-Pour une route comme `/products/123`, utilise `[param]` dans le nom du dossier :
+Pour une route comme `/products/123`, crée cette structure :
+
+```
+src/routes/
+└── products/
+    └── [id]/           ← Les crochets indiquent un paramètre dynamique
+        └── page.tsx
+```
 
 ```tsx
 // src/routes/products/[id]/page.tsx
@@ -97,9 +115,21 @@ export default function ProductPage() {
 }
 ```
 
-### 4. Créer une route API
+Le paramètre `id` dans l'URL (`/products/42`) est récupéré via `useParams()`.
 
-Crée un fichier `.ts` dans `src/routes/api/` :
+### 3. Créer une route API
+
+Les routes API vont dans `src/routes/api/`. Tu peux organiser avec des sous-dossiers :
+
+```
+src/routes/api/
+├── hello.ts            → GET /api/hello
+├── products.ts         → GET/POST /api/products
+└── products/
+    └── [id].ts         → GET/PUT/DELETE /api/products/:id
+```
+
+**Exemple simple** - crée `src/routes/api/products.ts` :
 
 ```typescript
 // src/routes/api/products.ts
@@ -116,12 +146,30 @@ export async function GET(c: Context) {
 // POST /api/products
 export async function POST(c: Context) {
   const body = await c.req.json()
-  // Sauvegarder en base...
   return c.json({ success: true, data: body }, 201)
 }
 ```
 
-### 5. Appeler l'API depuis une page
+**Avec paramètre** - crée `src/routes/api/products/[id].ts` :
+
+```typescript
+// src/routes/api/products/[id].ts
+import type { Context } from 'hono'
+
+// GET /api/products/42
+export async function GET(c: Context) {
+  const id = c.req.param('id')
+  return c.json({ id, name: 'Produit trouvé' })
+}
+
+// DELETE /api/products/42
+export async function DELETE(c: Context) {
+  const id = c.req.param('id')
+  return c.json({ deleted: id })
+}
+```
+
+### 4. Appeler l'API depuis une page
 
 ```tsx
 // src/routes/products/page.tsx
@@ -146,7 +194,7 @@ export default function ProductsPage() {
 }
 ```
 
-### 6. Navigation entre pages
+### 5. Navigation entre pages
 
 ```tsx
 import { Link } from 'react-router-dom'
@@ -601,6 +649,44 @@ Les routes sont régénérées automatiquement en mode dev. Si le problème pers
 1. Arrête le serveur (Ctrl+C)
 2. Supprime `src/_generated/`
 3. Relance `npm run dev`
+
+## Versioning
+
+Le projet utilise le [Semantic Versioning](https://semver.org/) (SemVer) : `MAJOR.MINOR.PATCH`
+
+| Type | Commande | Exemple | Quand l'utiliser |
+|------|----------|---------|------------------|
+| **Patch** | `npm version patch` | 0.1.0 → 0.1.1 | Bug fix, correction mineure |
+| **Minor** | `npm version minor` | 0.1.0 → 0.2.0 | Nouvelle fonctionnalité (rétrocompatible) |
+| **Major** | `npm version major` | 0.1.0 → 1.0.0 | Breaking change (incompatible) |
+
+### Workflow recommandé
+
+```bash
+# 1. Faire les modifications
+git add .
+git commit -m "feat: ajout de la fonctionnalité X"
+
+# 2. Mettre à jour la version
+npm version minor -m "v%s - Ajout fonctionnalité X"
+
+# 3. Pousser avec le tag
+git push && git push --tags
+```
+
+La commande `npm version` :
+- Met à jour le champ `version` dans `package.json`
+- Crée un commit automatique
+- Crée un tag git (ex: `v0.2.0`)
+
+### Pré-release
+
+Pour les versions de test :
+
+```bash
+npm version prerelease --preid=beta  # 0.2.0 → 0.2.1-beta.0
+npm version prerelease               # 0.2.1-beta.0 → 0.2.1-beta.1
+```
 
 ## Licence
 

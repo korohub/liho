@@ -152,7 +152,35 @@ const port = parseInt(process.env.PORT || String(__DEFAULT_PORT__))
 
 console.log(`[Liho] Production server running on http://localhost:${port}`)
 
-serve({
+const server = serve({
   fetch: app.fetch,
   port
 })
+
+// Graceful shutdown
+let isShuttingDown = false
+
+function gracefulShutdown(signal: string) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+
+  console.log(`\n[Liho] ${signal} received, shutting down gracefully...`)
+
+  server.close((err) => {
+    if (err) {
+      console.error('[Liho] Error during shutdown:', err.message)
+      process.exit(1)
+    }
+    console.log('[Liho] Server closed successfully')
+    process.exit(0)
+  })
+
+  // Force exit après 10 secondes si les connexions ne se ferment pas
+  setTimeout(() => {
+    console.warn('[Liho] Forcing shutdown after timeout')
+    process.exit(1)
+  }, 10000).unref()
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
