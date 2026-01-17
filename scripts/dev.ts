@@ -208,6 +208,14 @@ async function startDevServer() {
 
         res.statusCode = 200
         res.setHeader('Content-Type', 'text/html')
+
+        // Security headers pour les pages HTML en dev
+        // Note: CSP permissif pour permettre Vite HMR
+        res.setHeader('X-Frame-Options', 'DENY')
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+        res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+
         res.end(html)
       } catch (e) {
         res.statusCode = 500

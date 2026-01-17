@@ -6,6 +6,7 @@
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
+import { secureHeaders } from 'hono/secure-headers'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { readFileSync } from 'fs'
@@ -69,6 +70,43 @@ const __dirname = dirname(__filename)
 const clientDir = join(__dirname, 'client')
 
 const app = new Hono()
+
+// Security headers pour toutes les requêtes (pages HTML, assets, API)
+// Résout les alertes Lighthouse: COOP, X-Frame-Options, CSP
+app.use('*', secureHeaders({
+  // Protection contre le clickjacking
+  xFrameOptions: 'DENY',
+
+  // Isolation cross-origin (COOP) - requis par Lighthouse
+  crossOriginOpenerPolicy: 'same-origin',
+
+  // Isolation des ressources (COEP) - 'credentialless' pour compatibilité
+  crossOriginEmbedderPolicy: 'credentialless',
+
+  // Protection MIME type sniffing
+  xContentTypeOptions: 'nosniff',
+
+  // Referrer Policy
+  referrerPolicy: 'strict-origin-when-cross-origin',
+
+  // XSS Protection (legacy)
+  xXssProtection: '1; mode=block',
+
+  // Content Security Policy
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],  // Script inline pour dark mode dans index.html
+    styleSrc: ["'self'", "'unsafe-inline'"],   // Tailwind inline styles
+    imgSrc: ["'self'", 'data:', 'blob:'],
+    fontSrc: ["'self'"],
+    connectSrc: ["'self'"],
+    frameSrc: ["'none'"],
+    frameAncestors: ["'none'"], // Renforce X-Frame-Options
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    formAction: ["'self'"],
+  },
+}))
 
 // Middleware access log
 const accessLogEnabled = __ACCESS_LOG_CONSOLE__ || __ACCESS_LOG_FILE__ !== null
