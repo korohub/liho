@@ -769,43 +769,6 @@ Les routes sont régénérées automatiquement en mode dev. Si le problème pers
 2. Supprime `src/_generated/`
 3. Relance `npm run dev`
 
-## Versioning
-
-Le projet utilise le [Semantic Versioning](https://semver.org/) (SemVer) : `MAJOR.MINOR.PATCH`
-
-| Type | Commande | Exemple | Quand l'utiliser |
-|------|----------|---------|------------------|
-| **Patch** | `npm version patch` | 0.1.0 → 0.1.1 | Bug fix, correction mineure |
-| **Minor** | `npm version minor` | 0.1.0 → 0.2.0 | Nouvelle fonctionnalité (rétrocompatible) |
-| **Major** | `npm version major` | 0.1.0 → 1.0.0 | Breaking change (incompatible) |
-
-### Workflow recommandé
-
-```bash
-# 1. Faire les modifications
-git add .
-git commit -m "feat: ajout de la fonctionnalité X"
-
-# 2. Mettre à jour la version
-npm version minor -m "v%s - Ajout fonctionnalité X"
-
-# 3. Pousser avec le tag
-git push && git push --tags
-```
-
-La commande `npm version` :
-- Met à jour le champ `version` dans `package.json`
-- Crée un commit automatique
-- Crée un tag git (ex: `v0.2.0`)
-
-### Pré-release
-
-Pour les versions de test :
-
-```bash
-npm version prerelease --preid=beta  # 0.2.0 → 0.2.1-beta.0
-npm version prerelease               # 0.2.1-beta.0 → 0.2.1-beta.1
-```
 
 ## Licence
 

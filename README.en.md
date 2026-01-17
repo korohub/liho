@@ -769,44 +769,6 @@ Routes are automatically regenerated in dev mode. If the problem persists:
 2. Delete `src/_generated/`
 3. Restart `npm run dev`
 
-## Versioning
-
-The project uses [Semantic Versioning](https://semver.org/) (SemVer): `MAJOR.MINOR.PATCH`
-
-| Type | Command | Example | When to use |
-|------|---------|---------|-------------|
-| **Patch** | `npm version patch` | 0.1.0 → 0.1.1 | Bug fix, minor correction |
-| **Minor** | `npm version minor` | 0.1.0 → 0.2.0 | New feature (backward compatible) |
-| **Major** | `npm version major` | 0.1.0 → 1.0.0 | Breaking change (incompatible) |
-
-### Recommended workflow
-
-```bash
-# 1. Make changes
-git add .
-git commit -m "feat: add feature X"
-
-# 2. Update version
-npm version minor -m "v%s - Add feature X"
-
-# 3. Push with tag
-git push && git push --tags
-```
-
-The `npm version` command:
-- Updates the `version` field in `package.json`
-- Creates an automatic commit
-- Creates a git tag (e.g., `v0.2.0`)
-
-### Pre-release
-
-For test versions:
-
-```bash
-npm version prerelease --preid=beta  # 0.2.0 → 0.2.1-beta.0
-npm version prerelease               # 0.2.1-beta.0 → 0.2.1-beta.1
-```
-
 ## License
 
 MIT
