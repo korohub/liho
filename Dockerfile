@@ -1,4 +1,4 @@
-# Liho - Docker (Node.js)
+# Liho - Docker
 FROM node:22-alpine
 WORKDIR /app
 COPY dist ./

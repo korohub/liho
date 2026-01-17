@@ -9,7 +9,6 @@
 - Vite (build/dev)
 - Tailwind CSS (styling)
 - TypeScript
-- Compatible Node.js et Bun
 
 ## Commandes
 
@@ -18,14 +17,6 @@ npm run dev      # Dev server http://localhost:4010
 npm run build    # Build production → dist/
 npm run preview  # Tester le build localement
 npm start        # Production
-```
-
-### Avec Bun (plus rapide)
-
-```bash
-bun install
-bun run dev
-bun run build
 ```
 
 ---
@@ -375,8 +366,6 @@ Variable d'environnement `PORT` pour override.
 
 ## DOCKER
 
-### Node.js
-
 ```dockerfile
 FROM node:22-alpine
 WORKDIR /app
@@ -384,17 +373,6 @@ COPY dist ./
 RUN npm install
 EXPOSE 4010
 CMD ["npm", "start"]
-```
-
-### Bun (plus performant)
-
-```dockerfile
-FROM oven/bun:alpine
-WORKDIR /app
-COPY dist ./
-RUN bun install
-EXPOSE 4010
-CMD ["bun", "server.js"]
 ```
 
 ---

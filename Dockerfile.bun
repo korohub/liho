@@ -1,7 +1,0 @@
-# Liho - Docker (Bun - plus performant)
-FROM oven/bun:alpine
-WORKDIR /app
-COPY dist ./
-RUN bun install
-EXPOSE 4010
-CMD ["bun", "server.js"]
