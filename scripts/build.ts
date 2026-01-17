@@ -75,6 +75,23 @@ async function buildProject() {
 
   // 5. Générer le package.json pour le déploiement
   log.info('Generating package.json...')
+
+  // Dépendances bundlées par Vite/esbuild (ne pas inclure dans dist/package.json)
+  const bundledDeps = new Set([
+    'hono',
+    'react',
+    'react-dom',
+    'react-router-dom'
+  ])
+
+  // Copier les dépendances de production non-bundlées
+  const distDeps: Record<string, string> = {}
+  for (const [name, version] of Object.entries(sourcePkg.dependencies || {})) {
+    if (!bundledDeps.has(name)) {
+      distDeps[name] = version as string
+    }
+  }
+
   const distPkg = {
     name: sourcePkg.name || 'liho-app',
     version: sourcePkg.version || '1.0.0',
@@ -82,9 +99,7 @@ async function buildProject() {
     scripts: {
       start: 'node server.js'
     },
-    dependencies: {
-      '@hono/node-server': sourcePkg.dependencies['@hono/node-server']
-    }
+    dependencies: distDeps
   }
   writeFileSync(`${config.build.outDir}/package.json`, JSON.stringify(distPkg, null, 2))
 

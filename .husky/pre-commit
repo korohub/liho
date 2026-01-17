@@ -1,0 +1,21 @@
+#!/bin/sh
+
+# Auto-increment patch version when code changes
+# Only triggers for changes in src/ or scripts/
+
+# Check if any staged files are in src/ or scripts/
+STAGED_CODE=$(git diff --cached --name-only | grep -E '^(src/|scripts/)' | head -1)
+
+if [ -n "$STAGED_CODE" ]; then
+  echo "[Liho] Code changes detected, incrementing patch version..."
+
+  # Increment patch version without creating git tag
+  npm version patch --no-git-tag-version > /dev/null 2>&1
+
+  # Get new version
+  NEW_VERSION=$(node -p "require('./package.json').version")
+  echo "[Liho] Version bumped to $NEW_VERSION"
+
+  # Add package.json to the commit
+  git add package.json
+fi
