@@ -185,7 +185,11 @@ export default defineConfig({
   },
   logging: {
     level: 'verbose',  // 'none' | 'minimal' | 'verbose'
-    apiRequests: true  // Log des requêtes API
+    apiRequests: true, // Log des requêtes API
+    accessLog: {
+      console: false,  // Log Apache Combined en console
+      file: null       // Chemin fichier (ex: './logs/access.log')
+    }
   },
   build: {
     outDir: 'dist',
@@ -200,6 +204,39 @@ Via la config ou variable d'environnement :
 
 ```bash
 PORT=8080 npm run dev
+```
+
+### Access Logs
+
+Pour activer les logs au format Apache Combined (avec temps de réponse) :
+
+```typescript
+logging: {
+  accessLog: {
+    console: true,                 // Afficher en console
+    file: './logs/access.log'      // Écrire dans un fichier
+  }
+}
+```
+
+Format de sortie :
+```
+127.0.0.1 - - [17/Jan/2026:18:30:45 +0100] "GET /api/users HTTP/1.1" 200 1234 "-" "Mozilla/5.0..." 45ms
+```
+
+**Note** : L'écriture sur disque ajoute une opération I/O par requête. Sur des applications à très fort trafic, préférez logger uniquement en console et rediriger vers un fichier au niveau système (`node server.js >> access.log`).
+
+**Important** : En production avec logs fichier, configurez `logrotate` pour éviter que les fichiers ne grossissent indéfiniment :
+
+```bash
+# /etc/logrotate.d/liho
+/app/logs/access.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+}
 ```
 
 ## Conventions de nommage

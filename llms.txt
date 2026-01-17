@@ -329,13 +329,39 @@ export default defineConfig({
   },
   logging: {
     level: 'verbose',  // 'none' | 'minimal' | 'verbose'
-    apiRequests: true  // Log des requêtes API avec temps de réponse
+    apiRequests: true, // Log des requêtes API avec temps de réponse
+    accessLog: {
+      console: false,  // Log Apache Combined en console
+      file: null       // Chemin fichier (ex: './logs/access.log')
+    }
   },
   build: {
     outDir: 'dist',    // Dossier de sortie
     minify: true
   }
 })
+```
+
+### Access Log
+
+Format Apache Combined + temps de réponse :
+```
+127.0.0.1 - - [17/Jan/2026:18:30:45 +0100] "GET /api/users HTTP/1.1" 200 1234 "-" "Mozilla/5.0..." 45ms
+```
+
+**Note** : L'écriture sur disque ajoute une opération I/O par requête. Sur des applications à très fort trafic, préférez logger uniquement en console et rediriger vers un fichier au niveau système (`node server.js >> access.log`).
+
+**Important** : Si vous activez les logs fichier en production, configurez `logrotate` pour éviter que les fichiers ne grossissent indéfiniment :
+
+```bash
+# /etc/logrotate.d/liho
+/app/logs/access.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+}
 ```
 
 ---

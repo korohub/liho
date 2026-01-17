@@ -64,7 +64,9 @@ async function buildProject() {
     minify: config.build.minify,
     external: ['@hono/node-server'],
     define: {
-      '__DEFAULT_PORT__': String(config.server.port)
+      '__DEFAULT_PORT__': String(config.server.port),
+      '__ACCESS_LOG_CONSOLE__': String(config.logging.accessLog.console),
+      '__ACCESS_LOG_FILE__': config.logging.accessLog.file ? `"${config.logging.accessLog.file}"` : 'null'
     },
     banner: {
       js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);"

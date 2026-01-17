@@ -9,6 +9,43 @@ import { Hono } from 'hono'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { readFileSync } from 'fs'
+import { appendFile, mkdir } from 'fs/promises'
+
+// Config access log injectée au build
+declare const __ACCESS_LOG_CONSOLE__: boolean
+declare const __ACCESS_LOG_FILE__: string | null
+
+// Formatage Apache Combined + response time
+function formatApacheDate(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = months[date.getMonth()]
+  const year = date.getFullYear()
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  const tzOffset = -date.getTimezoneOffset()
+  const tzSign = tzOffset >= 0 ? '+' : '-'
+  const tzHours = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, '0')
+  const tzMinutes = String(Math.abs(tzOffset) % 60).padStart(2, '0')
+  return `${day}/${month}/${year}:${hours}:${minutes}:${seconds} ${tzSign}${tzHours}${tzMinutes}`
+}
+
+function writeAccessLog(ip: string, method: string, path: string, status: number, size: number, referer: string | null, userAgent: string | null, durationMs: number): void {
+  const date = formatApacheDate(new Date())
+  const logLine = `${ip} - - [${date}] "${method} ${path} HTTP/1.1" ${status} ${size} "${referer || '-'}" "${userAgent || '-'}" ${durationMs}ms`
+
+  if (__ACCESS_LOG_CONSOLE__) {
+    console.log(logLine)
+  }
+
+  if (__ACCESS_LOG_FILE__) {
+    // Écriture asynchrone pour ne pas bloquer l'event loop
+    mkdir(dirname(__ACCESS_LOG_FILE__), { recursive: true })
+      .then(() => appendFile(__ACCESS_LOG_FILE__, logLine + '\n'))
+      .catch(() => { /* ignore */ })
+  }
+}
 
 // Import de l'app API générée
 import { app as apiApp } from './src/_generated/api'
@@ -19,6 +56,26 @@ const __dirname = dirname(__filename)
 const clientDir = join(__dirname, 'client')
 
 const app = new Hono()
+
+// Middleware access log
+const accessLogEnabled = __ACCESS_LOG_CONSOLE__ || __ACCESS_LOG_FILE__ !== null
+if (accessLogEnabled) {
+  app.use('*', async (c, next) => {
+    const start = Date.now()
+    await next()
+    const duration = Date.now() - start
+
+    const ip = (c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || '127.0.0.1').split(',')[0].trim()
+    const method = c.req.method
+    const path = c.req.path
+    const status = c.res.status
+    const size = parseInt(c.res.headers.get('content-length') || '0')
+    const referer = c.req.header('referer') || null
+    const userAgent = c.req.header('user-agent') || null
+
+    writeAccessLog(ip, method, path, status, size, referer, userAgent, duration)
+  })
+}
 
 // Routes API - l'app générée a déjà les préfixes /api
 app.route('', apiApp)

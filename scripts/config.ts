@@ -23,6 +23,13 @@ export interface LihoConfig {
     level?: 'none' | 'minimal' | 'verbose'
     /** Logger les requêtes API avec temps de réponse (défaut: true en dev) */
     apiRequests?: boolean
+    /** Access log style Apache Combined avec temps de réponse */
+    accessLog?: {
+      /** Activer les logs en console (défaut: false) */
+      console?: boolean
+      /** Chemin du fichier de log (désactivé si non spécifié) */
+      file?: string
+    }
   }
 
   /** Configuration du build */
@@ -43,6 +50,10 @@ export interface ResolvedConfig {
   logging: {
     level: 'none' | 'minimal' | 'verbose'
     apiRequests: boolean
+    accessLog: {
+      console: boolean
+      file: string | null
+    }
   }
   build: {
     outDir: string
@@ -58,7 +69,11 @@ const defaultConfig: ResolvedConfig = {
   },
   logging: {
     level: 'verbose',
-    apiRequests: true
+    apiRequests: true,
+    accessLog: {
+      console: false,
+      file: null
+    }
   },
   build: {
     outDir: 'dist',
@@ -103,7 +118,14 @@ export async function loadConfig(): Promise<ResolvedConfig> {
     // Fusion profonde avec les valeurs par défaut
     return {
       server: { ...defaultConfig.server, ...userConfig.server },
-      logging: { ...defaultConfig.logging, ...userConfig.logging },
+      logging: {
+        ...defaultConfig.logging,
+        ...userConfig.logging,
+        accessLog: {
+          console: userConfig.logging?.accessLog?.console ?? defaultConfig.logging.accessLog.console,
+          file: userConfig.logging?.accessLog?.file ?? defaultConfig.logging.accessLog.file
+        }
+      },
       build: { ...defaultConfig.build, ...userConfig.build }
     }
   } catch (error) {

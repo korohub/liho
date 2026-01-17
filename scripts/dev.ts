@@ -8,6 +8,7 @@ import { watch } from 'fs'
 import { buildRoutes } from './router.js'
 import { log } from './colors.js'
 import { loadConfig } from './config.js'
+import { formatAccessLog, writeAccessLog, isAccessLogEnabled } from './logger.js'
 import type { ViteDevServer } from 'vite'
 import type { ResolvedConfig } from './config.js'
 
@@ -68,12 +69,17 @@ async function startDevServer() {
     }
   })
 
+  const accessLogEnabled = isAccessLogEnabled(config.logging.accessLog)
+
   const server = createServer(async (req, res) => {
     const url = req.url || '/'
+    const startTime = Date.now()
+    const ip = (req.socket.remoteAddress || '127.0.0.1').replace('::ffff:', '')
+    const referer = req.headers.referer || null
+    const userAgent = req.headers['user-agent'] || null
 
     // Routes API → Hono (avec hot reload via Vite SSR)
     if (url.startsWith('/api')) {
-      const startTime = Date.now()
       const headers: Record<string, string> = {}
       for (const [key, value] of Object.entries(req.headers)) {
         if (typeof value === 'string') headers[key] = value
@@ -108,16 +114,30 @@ async function startDevServer() {
         const responseBody = await response.text()
         res.end(responseBody)
 
-        // Log de la requête API si activé
+        const duration = Date.now() - startTime
+
+        // Log coloré pour le dev
         if (config.logging.apiRequests) {
-          const duration = Date.now() - startTime
           log.api(req.method || 'GET', url, response.status, duration)
         }
+
+        // Access log format Apache
+        if (accessLogEnabled) {
+          const logLine = formatAccessLog(ip, req.method || 'GET', url, response.status, responseBody.length, referer, userAgent, duration)
+          writeAccessLog(config.logging.accessLog, logLine)
+        }
       } catch (error) {
-        // Log de l'erreur si activé
+        const duration = Date.now() - startTime
+
+        // Log coloré pour le dev
         if (config.logging.apiRequests) {
-          const duration = Date.now() - startTime
           log.api(req.method || 'GET', url, 500, duration)
+        }
+
+        // Access log format Apache
+        if (accessLogEnabled) {
+          const logLine = formatAccessLog(ip, req.method || 'GET', url, 500, 0, referer, userAgent, duration)
+          writeAccessLog(config.logging.accessLog, logLine)
         }
         console.error('[API Error]', error)
         res.statusCode = 500
@@ -142,9 +162,23 @@ async function startDevServer() {
         res.statusCode = 200
         res.setHeader('Content-Type', 'text/html')
         res.end(html)
+
+        // Access log pour les pages HTML
+        if (accessLogEnabled) {
+          const duration = Date.now() - startTime
+          const logLine = formatAccessLog(ip, req.method || 'GET', url, 200, html.length, referer, userAgent, duration)
+          writeAccessLog(config.logging.accessLog, logLine)
+        }
       } catch (e) {
         res.statusCode = 500
         res.end('Error loading page')
+
+        // Access log pour les erreurs
+        if (accessLogEnabled) {
+          const duration = Date.now() - startTime
+          const logLine = formatAccessLog(ip, req.method || 'GET', url, 500, 0, referer, userAgent, duration)
+          writeAccessLog(config.logging.accessLog, logLine)
+        }
       }
     })
   })
