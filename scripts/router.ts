@@ -365,7 +365,7 @@ function generateRouteConfig(
     } else {
       // Ce nœud n'a PAS de layout, les enfants doivent être remontés
       // avec leur chemin préfixé par notre segment
-      const prefix = node.segment || ''
+      const prefix = pathPrefix ? `${pathPrefix}/${node.segment}` : (node.segment || '')
       const result = generateRouteConfig(child, imports, depth, prefix)
       if (result.config) hoistedRoutes.push(result.config)
       hoistedRoutes.push(...result.hoisted)

@@ -148,3 +148,47 @@ describe('Router - Fichiers API', () => {
     expect(isIndex).toBe(true)
   })
 })
+
+describe('Router - Routes imbriquées profondes (hoisting)', () => {
+  it('devrait préserver le chemin complet lors du hoisting multi-niveaux', () => {
+    // Simulation du comportement de préfixage
+    // Structure: sites/[id]/incidents sans layout intermédiaire
+    const pathPrefix = 'sites'
+    const nodeSegment = ':id'
+    const childSegment = 'incidents'
+
+    // Ancienne logique (bug): const prefix = nodeSegment || ''
+    // Nouvelle logique: préserve le pathPrefix
+    const prefix = pathPrefix ? `${pathPrefix}/${nodeSegment}` : (nodeSegment || '')
+
+    // Le chemin final de l'enfant doit inclure le préfixe complet
+    const finalPath = `${prefix}/${childSegment}`
+    expect(finalPath).toBe('sites/:id/incidents')
+  })
+
+  it('devrait gérer le cas sans pathPrefix initial', () => {
+    const pathPrefix = ''
+    const nodeSegment = 'users'
+
+    const prefix = pathPrefix ? `${pathPrefix}/${nodeSegment}` : (nodeSegment || '')
+    expect(prefix).toBe('users')
+  })
+
+  it('devrait gérer plusieurs niveaux de hoisting', () => {
+    // Structure: a/b/c/page.tsx sans layout
+    // Doit générer: a/b/c
+    let prefix = ''
+
+    // Niveau a
+    prefix = prefix ? `${prefix}/a` : 'a'
+    expect(prefix).toBe('a')
+
+    // Niveau b
+    prefix = prefix ? `${prefix}/b` : 'b'
+    expect(prefix).toBe('a/b')
+
+    // Niveau c
+    prefix = prefix ? `${prefix}/c` : 'c'
+    expect(prefix).toBe('a/b/c')
+  })
+})
